@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Wave Function Collapsed images</title>
+		<style>
+			body {
+				margin: 0;
+				padding: 0;
+				background-color: #000;
+				font-family: sans-serif;
+				font-weight: lighter;
+				color: #fff;
+			}
+			main {
+				position: absolute;
+				top: 0;
+				left: 50%;
+				transform: translate(-50%, 0);
+				width: 80vmin;
+				height: 80vmin;
+			}
+			canvas {
+				width: 100%;
+				height: 100%;
+				image-rendering: pixelated;
+			}
+            ul{
+                list-style-type: "- ";
+                padding-left: 2ch;
+            }
+		</style>
+	</head>
+	<body>
+		<main>
+			<canvas id="img"></canvas>
+			<p>
+				Current image: <span id="img-num">1</span><br />
+				Rules: <br />
+				<ul id="rules"></ul>
+			</p>
+			<p>
+				<button id="previous">⬅️ Previous</button>
+				<button id="next">Next ➡️</button>
+			</p>
+		</main>
+		<script>
+			const IMG_COUNT = 1000;
+			const text = a => new TextDecoder().decode(a);
+			const canvas = document.querySelector("canvas");
+			const ctx = canvas.getContext("2d");
+			async function display_ppm(url) {
+				const res = await fetch(url);
+				const buf = new Uint8Array(await res.arrayBuffer());
+				const ppm = buf.slice(buf.indexOf("\n".charCodeAt(0)) + 1);
+				const [width, height] = text(
+					ppm.slice(0, ppm.indexOf("\n".charCodeAt(0)))
+				)
+					.split(/\s+/g)
+					.map(x => parseInt(x));
+				const max = ppm.slice(ppm.indexOf("\n".charCodeAt(0)) + 1);
+				const data = max.slice(max.indexOf("\n".charCodeAt(0)) + 1);
+				const img = new ImageData(width, height);
+				let imgi = 0;
+				for (let i = 0; i < data.length; i += 3) {
+					img.data[imgi++] = data[i + 0];
+					img.data[imgi++] = data[i + 1];
+					img.data[imgi++] = data[i + 2];
+					img.data[imgi++] = 255;
+				}
+				canvas.width = width;
+				canvas.height = height;
+				ctx.putImageData(img, 0, 0);
+			}
+			let curr_img = 1;
+			const ruleUL = document.getElementById("rules");
+			const current = document.getElementById("img-num");
+			const previous = document.getElementById("previous");
+			const next = document.getElementById("next");
+			async function display(index) {
+				if (index > IMG_COUNT) index = 1;
+				if (index < 1) index = IMG_COUNT;
+				curr_img = index;
+				current.textContent = index;
+				const rules = await fetch("/generated/" + index + "/rules.txt");
+				if (!rules.ok) throw new Error("Could not fetch rules");
+				const txt = await rules.text();
+                ruleUL.innerHTML = "";
+                const ruleArr = txt.trim().split("\n")
+                for(const rule of ruleArr){
+                    const li = document.createElement("li");
+                    li.textContent = rule;
+                    ruleUL.appendChild(li);
+                }
+				display_ppm("/generated/" + index + "/image.ppm");
+			}
+			next.addEventListener("click", () => display(curr_img + 1));
+			previous.addEventListener("click", () => display(curr_img - 1));
+			display(
+                parseInt(localStorage.getItem("curr_img") || 1)
+            );
+            addEventListener("blur", () => 
+                localStorage.setItem("curr_img", curr_img)
+            );
+		</script>
+	</body>
+</html>
